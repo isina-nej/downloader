@@ -1,5 +1,4 @@
-aiogram==3.3.0
-python-telegram-bot==20.5
+aiogram>=3.10.0
 fastapi
 uvicorn
 python-dotenv

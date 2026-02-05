@@ -16,8 +16,11 @@ COPY src/ src/
 COPY .env.production .env
 
 # صاحب فایل‌ها
-RUN mkdir -p /app/storage /app/logs && \
+RUN mkdir -p /app/storage /app/logs /app/files && \
     chmod -R 755 /app
+
+# Volume برای ذخیره فایل‌ها و لاگ‌ها
+VOLUME ["/app/storage", "/app/logs", "/app/files"]
 
 # Port برای uvicorn
 EXPOSE 8000
