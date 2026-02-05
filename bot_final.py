@@ -208,10 +208,20 @@ async def unknown_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def main():
     """Main entry point"""
     print("🚀 Initializing Application...\n")
-    
+
+    # Single-instance lock to prevent Telegram getUpdates conflicts
+    from src.singleton_lock import SingleInstance
+    from pathlib import Path
+
+    lock = SingleInstance(Path("./bot.pid"))
+    try:
+        lock.acquire()
+    except RuntimeError as e:
+        print(str(e))
+        return
+
     # Create application
-    app = Application.builder().token(TOKEN).build()
-    
+    app = Application.builder().token(TOKEN).build()    
     print("📝 Setting up handlers...")
     
     # Command handlers
@@ -269,6 +279,11 @@ async def main():
         logger.info("Stopping application")
         await app.stop()
         print("✅ Bot stopped\n")
+        # Release lock
+        try:
+            lock.release()
+        except Exception:
+            pass
 
 
 if __name__ == "__main__":

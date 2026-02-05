@@ -190,7 +190,14 @@ class TelegramBot:
 
     def run_polling(self):
         """Run bot in polling mode."""
-        self.app.run_polling()
+        try:
+            self.app.run_polling()
+        except Exception as e:
+            if "Conflict" in str(e):
+                bot_logger.error("Telegram conflict error detected: another getUpdates request is running. Ensure only one bot instance is running.")
+                raise
+            bot_logger.error(f"Polling error: {e}")
+            raise
 
 
 async def create_bot() -> TelegramBot:

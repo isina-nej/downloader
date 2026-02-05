@@ -198,9 +198,26 @@ async def main():
     if not TOKEN:
         print("❌ ERROR: TELEGRAM_BOT_TOKEN not found in .env")
         return
-    
-    bot = TelegramBot()
-    await bot.run()
+
+    # Single-instance lock to prevent Telegram getUpdates conflicts
+    from src.singleton_lock import SingleInstance
+    from pathlib import Path
+
+    lock = SingleInstance(Path("./bot.pid"))
+    try:
+        lock.acquire()
+    except RuntimeError as e:
+        print(str(e))
+        return
+
+    try:
+        bot = TelegramBot()
+        await bot.run()
+    finally:
+        try:
+            lock.release()
+        except Exception:
+            pass
 
 
 if __name__ == "__main__":
