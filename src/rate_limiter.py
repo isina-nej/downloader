@@ -5,6 +5,8 @@ import time
 from typing import Dict
 from collections import defaultdict
 
+from src.config import config
+
 
 class RateLimiter:
     """Simple in-memory rate limiter using sliding window."""
