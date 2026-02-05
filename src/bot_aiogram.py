@@ -114,11 +114,6 @@ class AiogramBot:
         except Exception as e:
             bot_logger.error(f"Error getting stats: {e}")
             await message.answer("❌ خطا در دریافت آمار!")
-                user_id=message.from_user.id
-            )
-        except Exception as e:
-            bot_logger.error(f"Error getting stats: {str(e)}")
-            await message.answer("❌ خطا در دریافت آمار")
 
     async def cmd_cancel(self, message: types.Message, state: FSMContext):
         """Handle /cancel command."""
