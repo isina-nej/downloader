@@ -130,7 +130,8 @@ class TelegramBot:
             )
 
             # Download file
-            await update.message.chat.send_action(ChatAction.DOCUMENT)
+            # Use bot.send_chat_action instead of chat.send_action (Chat object may not have send_action)
+            await context.bot.send_chat_action(chat_id=update.effective_chat.id, action=ChatAction.UPLOAD_DOCUMENT)
             file = await context.bot.get_file(file_obj.file_id)
             file_stream = await file.download_as_bytearray()
 

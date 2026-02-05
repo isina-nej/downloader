@@ -93,6 +93,17 @@ class ApplicationManager:
 
 async def main():
     """Main entry point."""
+    # Single instance enforcement
+    from src.singleton_lock import SingleInstance
+
+    lock = SingleInstance(config.PID_FILE)
+    try:
+        lock.acquire()
+    except RuntimeError as e:
+        bot_logger.error(str(e))
+        print(str(e))
+        return
+
     try:
         manager = ApplicationManager()
         await manager.start()
@@ -106,6 +117,12 @@ async def main():
     except Exception as e:
         bot_logger.error(f"Application error: {str(e)}")
         raise
+    finally:
+        # Release lock on exit
+        try:
+            lock.release()
+        except Exception:
+            pass
 
 
 if __name__ == "__main__":

@@ -8,7 +8,8 @@ from dotenv import load_dotenv
 env_file = Path(__file__).parent.parent / ".env.production"
 if not env_file.exists():
     env_file = Path(__file__).parent.parent / ".env"
-load_dotenv(env_file)
+# Force file values to override existing environment variables so production file wins
+load_dotenv(env_file, override=True)
 
 
 class Config:
@@ -36,6 +37,9 @@ class Config:
 
     # Logging
     LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO")
+
+    # PID file for single-instance enforcement
+    PID_FILE: Path = Path(os.getenv("PID_FILE", "./bot.pid"))
 
     def __init__(self):
         """Validate configuration on initialization."""

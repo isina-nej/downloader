@@ -193,10 +193,11 @@ class AiogramBot:
 
         try:
             # Download file
-            await message.chat.send_action(ChatAction.UPLOAD_DOCUMENT)
+            # Chat doesn't implement send_action directly in this version of aiogram.
+            await self.bot.send_chat_action(chat_id=message.chat.id, action=ChatAction.UPLOAD_DOCUMENT)
 
             file = await self.bot.get_file(file_obj.file_id)
-            file_stream = await self.bot.download(file)
+            file_stream = await self.bot.download(file)  # returns a stream-like object
 
             # Save to storage with mime type
             file_bytes = await file_stream.read()
@@ -251,6 +252,10 @@ class AiogramBot:
         try:
             await self.dp.start_polling(self.bot)
         except Exception as e:
+            # Detect Telegram conflict error coming from server and re-raise to stop the process
+            if "Conflict" in str(e):
+                bot_logger.error("Telegram conflict error detected: another getUpdates request is running. Ensure only one bot instance is running.")
+                raise
             bot_logger.error(f"Bot polling error: {str(e)}")
         finally:
             await self.bot.session.close()
