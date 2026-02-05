@@ -1,0 +1,27 @@
+version: '3.8'
+
+services:
+  telegram-bot:
+    build: .
+    container_name: telegram-bot
+    restart: unless-stopped
+    environment:
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID}
+      - SERVER_HOST=0.0.0.0
+      - SERVER_PORT=8000
+      - STORAGE_PATH=/app/storage
+      - DOWNLOAD_URL_BASE=${DOWNLOAD_URL_BASE}
+      - DATABASE_URL=sqlite:////app/telegram_downloader.db
+      - LOG_LEVEL=INFO
+    volumes:
+      - ./storage:/app/storage
+      - ./logs:/app/logs
+    ports:
+      - "8000:8000"
+    networks:
+      - telegram-network
+
+networks:
+  telegram-network:
+    driver: bridge
