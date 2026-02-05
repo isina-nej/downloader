@@ -1,4 +1,4 @@
-"""Telegram bot handler using aiogram - async and modern approach."""
+"""Telegram bot handler using aiogram - professional implementation."""
 
 import asyncio
 from typing import Optional
@@ -13,6 +13,7 @@ from aiogram.enums import ChatAction
 from src.config import config
 from src.storage import storage_manager
 from src.rate_limiter import rate_limiter
+from src.database import SessionLocal, TelegramUser
 from src.logging_config import bot_logger, log_structured
 
 
@@ -22,7 +23,7 @@ class FileUploadStates(StatesGroup):
 
 
 class AiogramBot:
-    """Modern Telegram bot using aiogram with async/await."""
+    """Professional Telegram bot using aiogram 3.x with full feature support."""
 
     def __init__(self):
         """Initialize aiogram bot."""
@@ -85,18 +86,34 @@ class AiogramBot:
         )
 
     async def cmd_stats(self, message: types.Message):
-        """Handle /stats command."""
+        """Handle /stats command with comprehensive statistics."""
         try:
             stats = await storage_manager.get_storage_info()
+            
             await message.answer(
                 f"📊 <b>آمار ذخیره سازی:</b>\n\n"
-                f"کل فایل‌ها: {stats['total_files']}\n"
-                f"اندازه کل: {stats['total_size_gb']:.2f} GB\n"
-                f"فضای دسترس: {stats['available_space_gb']:.2f} GB\n",
+                f"📁 کل فایل‌ها: {stats['total_files']}\n"
+                f"✅ فایل‌های فعال: {stats['active_files']}\n"
+                f"💾 اندازه کل: {stats['total_size_gb']:.2f} GB\n"
+                f"⬇️ دانلود‌های کل: {stats['total_downloads']}\n"
+                f"📥 حجم دانلود‌شده: {stats['total_downloads_gb']:.2f} GB\n"
+                f"👥 کاربران منحصر: {stats['unique_users']}\n"
+                f"💿 فضای دسترس: {stats['available_space_gb']:.2f} GB\n",
                 parse_mode="HTML"
             )
+            
+            # Log stats
             log_structured(
-                bot_logger, "info", "Stats retrieved",
+                bot_logger, 
+                "info", 
+                "Stats retrieved",
+                user_id=message.from_user.id,
+                total_files=stats['total_files'],
+                total_size_gb=stats['total_size_gb']
+            )
+        except Exception as e:
+            bot_logger.error(f"Error getting stats: {e}")
+            await message.answer("❌ خطا در دریافت آمار!")
                 user_id=message.from_user.id
             )
         except Exception as e:
@@ -113,10 +130,10 @@ class AiogramBot:
         await message.answer("❌ عملیات لغو شد")
 
     async def handle_file(self, message: types.Message):
-        """Handle file uploads (documents, videos, audio)."""
+        """Handle file uploads with professional tracking."""
         user_id = message.from_user.id
 
-        # Rate limiting
+        # Rate limiting check
         is_allowed = await rate_limiter.is_allowed(str(user_id))
         if not is_allowed:
             await message.answer("⏱️ محدودیت درخواست! لطفا منتظر بمانید.")
@@ -126,16 +143,40 @@ class AiogramBot:
             )
             return
 
+        # Get or create user in database
+        db = SessionLocal()
+        try:
+            user = db.query(TelegramUser).filter(
+                TelegramUser.telegram_user_id == user_id
+            ).first()
+            
+            if not user:
+                user = TelegramUser(
+                    telegram_user_id=user_id,
+                    username=message.from_user.username,
+                    first_name=message.from_user.first_name,
+                    last_name=message.from_user.last_name,
+                )
+                db.add(user)
+            
+            user.last_activity = asyncio.get_event_loop().time()
+            db.commit()
+        finally:
+            db.close()
+
         # Get file object based on message type
         if message.document:
             file_obj = message.document
             filename = file_obj.file_name or f"file_{file_obj.file_unique_id}"
+            mime_type = file_obj.mime_type
         elif message.video:
             file_obj = message.video
             filename = f"video_{file_obj.file_unique_id}.mp4"
+            mime_type = file_obj.mime_type or "video/mp4"
         elif message.audio:
             file_obj = message.audio
             filename = f"audio_{file_obj.file_unique_id}.mp3"
+            mime_type = file_obj.mime_type or "audio/mpeg"
         else:
             await message.answer("❌ نوع فایل پشتیبانی نشده")
             return
@@ -162,13 +203,14 @@ class AiogramBot:
             file = await self.bot.get_file(file_obj.file_id)
             file_stream = await self.bot.download(file)
 
-            # Save to storage
+            # Save to storage with mime type
             file_bytes = await file_stream.read()
             file_id, stored_size = await storage_manager.save_file_stream(
                 telegram_file_id=file_obj.file_unique_id,
                 filename=filename,
                 file_stream=[file_bytes],
                 user_id=user_id,
+                mime_type=mime_type,
             )
 
             # Generate download link
@@ -180,16 +222,17 @@ class AiogramBot:
                 f"📁 نام: <code>{filename}</code>\n"
                 f"💾 اندازه: {stored_size / (1024**2):.2f} MB\n"
                 f"🔗 لینک:\n<code>{download_url}</code>\n\n"
-                f"لینک {config.FILE_RETENTION_DAYS} روز فعال می‌ماند.",
+                f"⏰ لینک {config.FILE_RETENTION_DAYS} روز فعال می‌ماند.",
                 parse_mode="HTML"
             )
 
             log_structured(
-                bot_logger, "info", "File uploaded",
+                bot_logger, "info", "File uploaded successfully",
                 user_id=user_id,
                 file_id=file_id,
                 filename=filename,
-                size_mb=stored_size / (1024**2)
+                size_mb=round(stored_size / (1024**2), 2),
+                mime_type=mime_type
             )
 
         except ValueError as e:

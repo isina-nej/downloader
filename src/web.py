@@ -1,20 +1,19 @@
-"""FastAPI web server for file downloads."""
+"""FastAPI web server for file downloads with professional endpoints."""
 
-from fastapi import FastAPI, HTTPException, BackgroundTasks
-from fastapi.responses import FileResponse
-from fastapi.staticfiles import StaticFiles
+from fastapi import FastAPI, HTTPException, BackgroundTasks, Request
+from fastapi.responses import FileResponse, JSONResponse
 import asyncio
 from pathlib import Path
 from src.config import config
 from src.storage import storage_manager
-from src.database import init_db
+from src.database import init_db, SessionLocal, DatabaseStatistics, FileRecord, TelegramUser
 from src.logging_config import web_logger, log_structured
 
 
 app = FastAPI(
     title="Telegram File Downloader",
-    description="Web server for downloading files uploaded via Telegram bot",
-    version="1.0.0"
+    description="Professional file management and download service",
+    version="2.0.0"
 )
 
 
@@ -22,28 +21,38 @@ app = FastAPI(
 async def startup():
     """Initialize database on startup."""
     init_db()
-    web_logger.info("Web server started")
+    web_logger.info("Web server started - Database initialized")
 
 
 @app.get("/")
 async def root():
-    """Root endpoint."""
+    """Root endpoint with API information."""
     return {
         "service": "Telegram File Downloader",
-        "version": "1.0.0",
+        "version": "2.0.0",
         "status": "running",
-        "download_endpoint": "/download/{file_id}"
+        "endpoints": {
+            "download": "/download/{file_id}",
+            "health": "/health",
+            "statistics": "/statistics",
+            "admin": "/admin/stats",
+        }
     }
 
 
 @app.get("/health")
 async def health_check():
-    """Health check endpoint."""
+    """Health check endpoint with storage info."""
     try:
         stats = await storage_manager.get_storage_info()
         return {
             "status": "healthy",
-            "storage": stats
+            "storage": {
+                "total_files": stats["total_files"],
+                "active_files": stats["active_files"],
+                "total_size_gb": stats["total_size_gb"],
+                "available_space_gb": stats["available_space_gb"],
+            }
         }
     except Exception as e:
         web_logger.error(f"Health check failed: {str(e)}")
@@ -51,16 +60,24 @@ async def health_check():
 
 
 @app.get("/download/{file_id}")
-async def download_file(file_id: str, background_tasks: BackgroundTasks):
+async def download_file(
+    file_id: str, 
+    request: Request,
+    background_tasks: BackgroundTasks
+):
     """
-    Download a file by ID.
+    Download a file by ID with tracking.
 
     Args:
-        file_id: The unique file ID
-        background_tasks: Background task runner for cleanup
+        file_id: The unique file ID (UUID format)
+        request: HTTP request object
+        background_tasks: Background task runner
 
     Returns:
         FileResponse with the file content
+
+    Raises:
+        HTTPException: If file not found or invalid
     """
     try:
         # Validate file_id format (UUID)
@@ -69,18 +86,26 @@ async def download_file(file_id: str, background_tasks: BackgroundTasks):
                 web_logger,
                 "warning",
                 "Invalid file ID format",
-                file_id=file_id
+                file_id=file_id,
+                ip=request.client.host
             )
             raise HTTPException(status_code=400, detail="Invalid file ID format")
 
-        # Get file from storage
-        result = await storage_manager.get_file(file_id)
+        # Get IP address for analytics
+        ip_address = request.client.host if request.client else "unknown"
+
+        # Get file from storage with tracking
+        result = await storage_manager.get_file(
+            file_id,
+            ip_address=ip_address
+        )
         if result is None:
             log_structured(
                 web_logger,
                 "warning",
-                "File not found",
-                file_id=file_id
+                "File not found or expired",
+                file_id=file_id,
+                ip=ip_address
             )
             raise HTTPException(status_code=404, detail="File not found or expired")
 
@@ -102,7 +127,8 @@ async def download_file(file_id: str, background_tasks: BackgroundTasks):
             "info",
             "File download started",
             file_id=file_id,
-            filename=original_filename
+            filename=original_filename,
+            ip=ip_address
         )
 
         # Return file
@@ -119,37 +145,95 @@ async def download_file(file_id: str, background_tasks: BackgroundTasks):
         raise HTTPException(status_code=500, detail="Error processing download")
 
 
+@app.get("/statistics")
+async def get_statistics():
+    """Get comprehensive statistics."""
+    try:
+        stats = await storage_manager.get_storage_info()
+        return {
+            "storage": {
+                "total_files": stats["total_files"],
+                "active_files": stats["active_files"],
+                "total_size_gb": stats["total_size_gb"],
+                "available_space_gb": stats["available_space_gb"],
+            },
+            "downloads": {
+                "total_downloads": stats["total_downloads"],
+                "total_downloaded_gb": stats["total_downloads_gb"],
+            },
+            "users": {
+                "unique_users": stats["unique_users"],
+            }
+        }
+    except Exception as e:
+        web_logger.error(f"Statistics error: {str(e)}")
+        raise HTTPException(status_code=500, detail="Could not retrieve statistics")
+
+
+@app.get("/admin/stats")
+async def admin_statistics():
+    """Get detailed admin statistics with database info."""
+    try:
+        db = SessionLocal()
+        try:
+            # Basic statistics
+            stats = await storage_manager.get_storage_info()
+            
+            # Database statistics
+            db_stats = db.query(DatabaseStatistics).first()
+            
+            # Recent files
+            recent_files = db.query(FileRecord).order_by(
+                FileRecord.created_at.desc()
+            ).limit(10).all()
+            
+            # Most downloaded files
+            top_files = db.query(FileRecord).order_by(
+                FileRecord.download_count.desc()
+            ).limit(10).all()
+            
+            # Top users
+            top_users = db.query(TelegramUser).order_by(
+                TelegramUser.last_activity.desc()
+            ).limit(10).all()
+            
+            return {
+                "storage": stats,
+                "database_stats": db_stats.to_dict() if db_stats else None,
+                "recent_files": [f.to_dict() for f in recent_files],
+                "top_files": [
+                    {**f.to_dict(), "user_id": f.user.telegram_user_id if f.user else None}
+                    for f in top_files
+                ],
+                "top_users": [u.to_dict() for u in top_users],
+            }
+        finally:
+            db.close()
+    except Exception as e:
+        web_logger.error(f"Admin stats error: {str(e)}")
+        raise HTTPException(status_code=500, detail="Could not retrieve admin statistics")
+
+
 @app.post("/cleanup")
 async def cleanup_old_files(background_tasks: BackgroundTasks):
     """
-    Trigger cleanup of old files (admin endpoint).
+    Trigger cleanup of expired files (admin endpoint).
     
     Should be protected with authentication in production.
     """
     try:
         # Run cleanup in background
         background_tasks.add_task(_perform_cleanup)
-        return {"status": "cleanup started"}
+        return {"status": "cleanup started", "message": "Expired files cleanup in progress"}
     except Exception as e:
         web_logger.error(f"Cleanup error: {str(e)}")
         raise HTTPException(status_code=500, detail="Cleanup failed")
 
 
-@app.get("/stats")
-async def get_stats():
-    """Get storage statistics."""
-    try:
-        stats = await storage_manager.get_storage_info()
-        return stats
-    except Exception as e:
-        web_logger.error(f"Stats error: {str(e)}")
-        raise HTTPException(status_code=500, detail="Could not retrieve statistics")
-
-
 async def _perform_cleanup():
     """Perform file cleanup in background."""
     try:
-        deleted_count = await storage_manager.cleanup_old_files()
+        deleted_count = await storage_manager.cleanup_expired_files()
         log_structured(
             web_logger,
             "info",
@@ -168,3 +252,13 @@ def _is_valid_uuid(value: str) -> bool:
         re.IGNORECASE
     )
     return uuid_pattern.match(value) is not None
+
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    """Global exception handler for all unhandled errors."""
+    web_logger.error(f"Unhandled error: {str(exc)}")
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "Internal server error"}
+    )
