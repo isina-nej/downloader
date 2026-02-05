@@ -3,6 +3,7 @@
 import asyncio
 from typing import Optional
 from io import BytesIO
+from datetime import datetime
 
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import Command, StateFilter
@@ -154,7 +155,8 @@ class AiogramBot:
                 )
                 db.add(user)
             
-            user.last_activity = asyncio.get_event_loop().time()
+            # Store last activity as UTC datetime for DB DateTime field compatibility
+            user.last_activity = datetime.utcnow()
             db.commit()
         finally:
             db.close()
