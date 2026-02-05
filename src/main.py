@@ -6,17 +6,17 @@ from typing import Set
 import uvicorn
 from src.config import config
 from src.database import init_db
-from src.bot import TelegramBot
+from src.bot_aiogram import AiogramBot
 from src.web import app
 from src.logging_config import bot_logger
 
 
 class ApplicationManager:
-    """Manages both bot and web server."""
+    """Manages both aiogram bot and web server."""
 
     def __init__(self):
         """Initialize application manager."""
-        self.bot: TelegramBot = None
+        self.bot: AiogramBot = None
         self.web_server_task = None
         self.shutdown_event = asyncio.Event()
 
@@ -26,10 +26,9 @@ class ApplicationManager:
         init_db()
         bot_logger.info("Database initialized")
 
-        # Create bot
-        self.bot = TelegramBot()
-        await self.bot.start()
-        bot_logger.info("Bot initialized")
+        # Create and start bot
+        self.bot = AiogramBot()
+        bot_logger.info("Aiogram bot initialized")
 
         # Start web server in asyncio
         self.web_server_task = asyncio.create_task(self._run_web_server())
@@ -38,6 +37,9 @@ class ApplicationManager:
         self._setup_signal_handlers()
 
         bot_logger.info("Application started successfully")
+        
+        # Start bot polling
+        await self.bot.start()
 
     async def _run_web_server(self):
         """Run web server."""

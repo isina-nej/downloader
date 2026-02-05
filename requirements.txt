@@ -1,7 +1,10 @@
+aiogram==3.3.0
 python-telegram-bot==20.5
 fastapi
 uvicorn
 python-dotenv
 sqlalchemy
+aiohttp
 black
 flake8
+

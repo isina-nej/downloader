@@ -1,0 +1,17 @@
+[Unit]
+Description=Telegram Downloader Bot
+After=network.target
+
+[Service]
+Type=simple
+User=www-data
+WorkingDirectory=/app
+EnvironmentFile=/app/.env.production
+ExecStart=/usr/bin/python3 -m src.main
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
