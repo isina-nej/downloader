@@ -4,8 +4,11 @@ import os
 from pathlib import Path
 from dotenv import load_dotenv
 
-# Load environment variables
-load_dotenv()
+# Load environment variables - try .env.production first, then .env
+env_file = Path(__file__).parent.parent / ".env.production"
+if not env_file.exists():
+    env_file = Path(__file__).parent.parent / ".env"
+load_dotenv(env_file)
 
 
 class Config:
