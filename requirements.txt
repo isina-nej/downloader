@@ -1,0 +1,7 @@
+python-telegram-bot==20.5
+fastapi
+uvicorn
+python-dotenv
+sqlalchemy
+black
+flake8

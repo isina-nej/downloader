@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=45", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "telegram-file-downloader"
+version = "1.0.0"
+description = "Telegram Bot to bridge files to a private storage server"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+authors = [
+    {name = "Your Name", email = "your.email@example.com"}
+]
+
+[project.urls]
+Homepage = "https://github.com/yourusername/telegram-downloader"
+Repository = "https://github.com/yourusername/telegram-downloader.git"
+
+[tool.black]
+line-length = 100
+target-version = ['py310']
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+
+[tool.flake8]
+max-line-length = 100
+extend-ignore = ["E203", "W503"]
