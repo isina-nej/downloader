@@ -235,11 +235,15 @@ class AiogramBot:
 
         except ValueError as e:
             await processing_msg.edit_text(f"❌ خطا: {str(e)}")
-            bot_logger.error(f"Validation error for user {user_id}: {str(e)}")
+            bot_logger.warning(f"Validation error for user {user_id}: {str(e)}")
 
         except Exception as e:
-            await processing_msg.edit_text("❌ خطا در پردازش فایل")
-            bot_logger.error(f"Error processing file for user {user_id}: {str(e)}")
+            # Log full traceback for debugging
+            bot_logger.exception(f"Error processing file for user {user_id}")
+            try:
+                await processing_msg.edit_text("❌ خطای داخلی رخ داده است؛ لطفاً بعداً تلاش کنید.")
+            except Exception:
+                pass
 
     async def handle_default(self, message: types.Message):
         """Handle unknown messages."""
