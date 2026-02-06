@@ -139,28 +139,6 @@ class AiogramBot:
             )
             return
 
-        # Get or create user in database
-        db = SessionLocal()
-        try:
-            user = db.query(TelegramUser).filter(
-                TelegramUser.telegram_user_id == user_id
-            ).first()
-            
-            if not user:
-                user = TelegramUser(
-                    telegram_user_id=user_id,
-                    username=message.from_user.username,
-                    first_name=message.from_user.first_name,
-                    last_name=message.from_user.last_name,
-                )
-                db.add(user)
-            
-            # Store last activity as UTC datetime for DB DateTime field compatibility
-            user.last_activity = datetime.utcnow()
-            db.commit()
-        finally:
-            db.close()
-
         # Get file object based on message type
         if message.document:
             file_obj = message.document
@@ -201,7 +179,7 @@ class AiogramBot:
             file = await self.bot.get_file(file_obj.file_id)
             file_stream = await self.bot.download(file)  # returns a stream-like object
 
-            # Save to storage with mime type
+            # Save to storage with mime type and user metadata
             file_bytes = await file_stream.read()
             file_id, stored_size = await storage_manager.save_file_stream(
                 telegram_file_id=file_obj.file_unique_id,
@@ -209,6 +187,9 @@ class AiogramBot:
                 file_stream=[file_bytes],
                 user_id=user_id,
                 mime_type=mime_type,
+                username=message.from_user.username,
+                first_name=message.from_user.first_name,
+                last_name=message.from_user.last_name,
             )
 
             # Generate download link
@@ -235,15 +216,11 @@ class AiogramBot:
 
         except ValueError as e:
             await processing_msg.edit_text(f"❌ خطا: {str(e)}")
-            bot_logger.warning(f"Validation error for user {user_id}: {str(e)}")
+            bot_logger.error(f"Validation error for user {user_id}: {str(e)}")
 
         except Exception as e:
-            # Log full traceback for debugging
-            bot_logger.exception(f"Error processing file for user {user_id}")
-            try:
-                await processing_msg.edit_text("❌ خطای داخلی رخ داده است؛ لطفاً بعداً تلاش کنید.")
-            except Exception:
-                pass
+            await processing_msg.edit_text("❌ خطا در پردازش فایل")
+            bot_logger.error(f"Error processing file for user {user_id}: {str(e)}")
 
     async def handle_default(self, message: types.Message):
         """Handle unknown messages."""

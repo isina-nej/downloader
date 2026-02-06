@@ -49,6 +49,9 @@ class StorageManager:
         file_stream,
         user_id: int,
         mime_type: Optional[str] = None,
+        username: Optional[str] = None,
+        first_name: Optional[str] = None,
+        last_name: Optional[str] = None,
     ) -> Tuple[str, int]:
         """
         Save a file from stream to storage with full tracking.
@@ -59,6 +62,9 @@ class StorageManager:
             file_stream: File content stream (bytes)
             user_id: Telegram user ID
             mime_type: MIME type of file
+            username: Optional Telegram username
+            first_name: Optional user first name
+            last_name: Optional user last name
 
         Returns:
             Tuple of (generated_file_id, file_size)
@@ -103,7 +109,12 @@ class StorageManager:
                 ).first()
                 
                 if not user:
-                    user = TelegramUser(telegram_user_id=user_id)
+                    user = TelegramUser(
+                        telegram_user_id=user_id,
+                        username=username,
+                        first_name=first_name,
+                        last_name=last_name,
+                    )
                     db.add(user)
                     db.flush()  # Get the ID
                 
